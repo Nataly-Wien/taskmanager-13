@@ -4,7 +4,11 @@
 
 ### Как пользоваться репозиторием
 
+<<<<<<< HEAD
 Первый вариант, это изучать коммиты [в веб-интерфейсе GitHub в master-ветке потока](https://github.com/htmlacademy/intensive-objects-taskmanager/tree/season/13/master).
+=======
+Первый вариант, это изучать коммиты [в веб-интерфейсе GitHub в master-ветке потока](https://github.com/htmlacademy-ecmascript/taskmanager-13/tree/master).
+>>>>>>> 98f666084e401c3d751e09d6d9de57c65a7162b6
 
 Второй вариант, изучать коммиты локально. Для этого нужно:
 1. Склонировать репозиторий на свой компьютер. Именно склонировать, а не скачать архив.
