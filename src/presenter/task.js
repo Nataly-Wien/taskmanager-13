@@ -1,10 +1,20 @@
 import TaskView from "../view/task.js";
 import TaskEditView from "../view/task-edit.js";
+import {isOnline} from "../utils/common.js";
 import {render, RenderPosition, replace, remove} from "../utils/render.js";
+import {UserAction, UpdateType} from "../const.js";
+import {isTaskRepeating, isDatesEqual} from "../utils/task.js";
+import {toast} from "../utils/toast/toast.js";
 
 const Mode = {
   DEFAULT: `DEFAULT`,
   EDITING: `EDITING`
+};
+
+export const State = {
+  SAVING: `SAVING`,
+  DELETING: `DELETING`,
+  ABORTING: `ABORTING`
 };
 
 export default class Task {
@@ -21,6 +31,7 @@ export default class Task {
     this._handleFavoriteClick = this._handleFavoriteClick.bind(this);
     this._handleArchiveClick = this._handleArchiveClick.bind(this);
     this._handleFormSubmit = this._handleFormSubmit.bind(this);
+    this._handleDeleteClick = this._handleDeleteClick.bind(this);
     this._escKeyDownHandler = this._escKeyDownHandler.bind(this);
   }
 
@@ -37,6 +48,7 @@ export default class Task {
     this._taskComponent.setFavoriteClickHandler(this._handleFavoriteClick);
     this._taskComponent.setArchiveClickHandler(this._handleArchiveClick);
     this._taskEditComponent.setFormSubmitHandler(this._handleFormSubmit);
+    this._taskEditComponent.setDeleteClickHandler(this._handleDeleteClick);
 
     if (prevTaskComponent === null || prevTaskEditComponent === null) {
       render(this._taskListContainer, this._taskComponent, RenderPosition.BEFOREEND);
@@ -48,7 +60,8 @@ export default class Task {
     }
 
     if (this._mode === Mode.EDITING) {
-      replace(this._taskEditComponent, prevTaskEditComponent);
+      replace(this._taskComponent, prevTaskEditComponent);
+      this._mode = Mode.DEFAULT;
     }
 
     remove(prevTaskComponent);
@@ -63,6 +76,35 @@ export default class Task {
   resetView() {
     if (this._mode !== Mode.DEFAULT) {
       this._replaceFormToCard();
+    }
+  }
+
+  setViewState(state) {
+    const resetFormState = () => {
+      this._taskEditComponent.updateData({
+        isDisabled: false,
+        isSaving: false,
+        isDeleting: false
+      });
+    };
+
+    switch (state) {
+      case State.SAVING:
+        this._taskEditComponent.updateData({
+          isDisabled: true,
+          isSaving: true
+        });
+        break;
+      case State.DELETING:
+        this._taskEditComponent.updateData({
+          isDisabled: true,
+          isDeleting: true
+        });
+        break;
+      case State.ABORTING:
+        this._taskComponent.shake(resetFormState);
+        this._taskEditComponent.shake(resetFormState);
+        break;
     }
   }
 
@@ -82,16 +124,24 @@ export default class Task {
   _escKeyDownHandler(evt) {
     if (evt.key === `Escape` || evt.key === `Esc`) {
       evt.preventDefault();
+      this._taskEditComponent.reset(this._task);
       this._replaceFormToCard();
     }
   }
 
   _handleEditClick() {
+    if (!isOnline()) {
+      toast(`You can't edit task offline`);
+      return;
+    }
+
     this._replaceCardToForm();
   }
 
   _handleFavoriteClick() {
     this._changeData(
+        UserAction.UPDATE_TASK,
+        UpdateType.MINOR,
         Object.assign(
             {},
             this._task,
@@ -104,6 +154,8 @@ export default class Task {
 
   _handleArchiveClick() {
     this._changeData(
+        UserAction.UPDATE_TASK,
+        UpdateType.MINOR,
         Object.assign(
             {},
             this._task,
@@ -114,8 +166,35 @@ export default class Task {
     );
   }
 
-  _handleFormSubmit(task) {
-    this._changeData(task);
-    this._replaceFormToCard();
+  _handleFormSubmit(update) {
+    if (!isOnline()) {
+      toast(`You can't save task offline`);
+      return;
+    }
+
+    // Проверяем, поменялись ли в задаче данные, которые попадают под фильтрацию,
+    // а значит требуют перерисовки списка - если таких нет, это PATCH-обновление
+    const isMinorUpdate =
+      !isDatesEqual(this._task.dueDate, update.dueDate) ||
+      isTaskRepeating(this._task.repeating) !== isTaskRepeating(update.repeating);
+
+    this._changeData(
+        UserAction.UPDATE_TASK,
+        isMinorUpdate ? UpdateType.MINOR : UpdateType.PATCH,
+        update
+    );
+  }
+
+  _handleDeleteClick(task) {
+    if (!isOnline()) {
+      toast(`You can't delete task offline`);
+      return;
+    }
+
+    this._changeData(
+        UserAction.DELETE_TASK,
+        UpdateType.MINOR,
+        task
+    );
   }
 }
